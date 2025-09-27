@@ -60,7 +60,7 @@ def search_music(
     spotify_client: spotipy.Spotify, criteria_type: SpotifyType, query: str
 ):
     if criteria_type == SpotifyType.RADIO:
-        criteria_type = "playlist"
+        criteria_type = SpotifyType.PLAYLIST
         query = "this%20is%20" + query
     else:
         criteria_type = criteria_type.value
