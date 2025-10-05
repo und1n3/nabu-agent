@@ -46,7 +46,7 @@ def execute_stt(input: bytes):
         model = WhisperModel(model_size, device="cuda", compute_type="float16")
     else:
         model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    result, info = model.transcribe(BytesIO(input), beam_size=5)
+    result, info = model.transcribe(BytesIO(input), beam_size=5, language="ca")
     return result
 
 
