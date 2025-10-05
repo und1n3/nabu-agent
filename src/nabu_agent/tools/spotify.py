@@ -1,3 +1,5 @@
+import logging
+import subprocess
 from typing import Optional
 
 import spotipy
@@ -7,7 +9,7 @@ from spotipy.oauth2 import SpotifyOAuth
 from ..utils.schemas import SpotifyType
 
 load_dotenv()
-
+logger = logging.getLogger(__name__)
 scope = [
     "playlist-read-private",
     "playlist-read-collaborative",
@@ -26,20 +28,37 @@ DEVICE_NAME = "librespot"
 DEVICE_ID = "7c28ab8a5c9512e4266ac7cb756312c82ee43d7e"
 
 
-spotify_client = spotipy.Spotify(
-    auth_manager=SpotifyOAuth(scope=scope, cache_path="/.cache")
-)
-print(spotify_client.devices())
+def init_spotify() -> spotipy.Spotify:
+    spotify_client = spotipy.Spotify(
+        auth_manager=SpotifyOAuth(scope=scope, cache_path="/.cache")
+    )
+    device_active = False
+    for device in spotify_client.devices()["devices"]:
+        if device["id"] == "7c28ab8a5c9512e4266ac7cb756312c82ee43d7e":
+            device_active = True
+            logger.info("librespot device already active")
+            break
+    if not device_active:
+        logger.info("enabling librespot device")
+        subprocess.run(["./spotify-connect", "192.168.0.13", "5577"])
+
+    return spotify_client
 
 
-def play_music(context_uri: Optional[str] = None, uris: Optional[str] = None) -> None:
+def play_music(
+    spotify_client: spotipy.Spotify,
+    context_uri: Optional[str] = None,
+    uris: Optional[str] = None,
+) -> None:
     if context_uri:
         spotify_client.start_playback(device_id=DEVICE_ID, context_uri=context_uri)
     else:
         spotify_client.start_playback(device_id=DEVICE_ID, uris=[uris])
 
 
-def search_music(criteria_type: SpotifyType, query: str):
+def search_music(
+    spotify_client: spotipy.Spotify, criteria_type: SpotifyType, query: str
+):
     if criteria_type == SpotifyType.RADIO:
         criteria_type = "playlist"
         query = "this%20is%20" + query

@@ -3,7 +3,7 @@ import logging
 from dotenv import load_dotenv
 
 from ...tools.agents import execute_spotify_classifier_agent
-from ...tools.spotify import play_music, search_music
+from ...tools.spotify import init_spotify, play_music, search_music
 from ...utils.schemas import SpotifyClassifier, SpotifyType
 from ...workflows.main.state import MainGraphState
 
@@ -26,8 +26,10 @@ def decide_action(state: MainGraphState):
 
 
 def search_and_play_music(state: MainGraphState) -> MainGraphState:
+    spotify_client = init_spotify()
     logger.info("--- Search & Play Song Node ---")
     id = search_music(
+        spotify_client,
         query=state["spotify_query"],
         criteria_type=state["spotify_command"],
     )
@@ -38,6 +40,6 @@ def search_and_play_music(state: MainGraphState) -> MainGraphState:
         uris = None
         context_uri = id
 
-    play_music(context_uri=context_uri, uris=uris)
+    play_music(spotify_client, context_uri=context_uri, uris=uris)
     state["final_answer"] = f"Playing: {state['english_command']}"
     return state

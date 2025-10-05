@@ -4,7 +4,8 @@ from ...utils.schemas import QuestionType, SpotifyType
 
 
 class MainGraphState(TypedDict):
-    input_command: str
+    stt_output: str
+    input: bytes
     original_language: str
     english_command: str
     question_type: QuestionType

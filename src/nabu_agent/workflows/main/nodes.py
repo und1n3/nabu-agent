@@ -2,14 +2,15 @@ import logging
 
 from dotenv import load_dotenv
 
+from ...data.preestablished_commands import party_commands
 from ...tools.agents import (
     execute_classifier_agent,
+    execute_ha_command,
     execute_party_sentence,
     execute_search_text,
+    execute_stt,
     execute_translator,
-    execute_ha_command,
 )
-from ...data.preestablished_commands import party_commands
 from ...utils.schemas import Classifier, PartySentence, QuestionType, Translator
 from ...workflows.main.state import MainGraphState
 
@@ -18,10 +19,21 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def stt(state: MainGraphState) -> MainGraphState:
+    logger.info("--- STT --- ")
+    result = execute_stt(input=state["input"])
+    final_result = ""
+    for i in result:
+        logger.info(i.text)
+        final_result += i.text
+    state["stt_output"] = final_result
+    return state
+
+
 def translate_to_english(state: MainGraphState) -> MainGraphState:
-    logger.info("---Translating to english --- ")
+    logger.info("--- Translating to english --- ")
     result: Translator = execute_translator(
-        text=state["input_command"], destination_language="english"
+        text=state["stt_output"], destination_language="english"
     )
     state["original_language"] = result.original_language
     state["english_command"] = result.translated_command
@@ -37,7 +49,6 @@ def enroute_question(state: MainGraphState) -> MainGraphState:
         english_command=state["english_command"],
         preestablished_commands_schema=party_commands,
     )
-    print(result)
     state["question_type"]: QuestionType = result.classification
     logger.info(f"Enrouting to: {result.classification}")
     return state

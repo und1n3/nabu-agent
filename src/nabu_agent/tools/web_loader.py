@@ -32,7 +32,7 @@ def search_and_fetch(query: str, num_results: int = 3, chunk_size: int = 500) ->
                 # format nicely with source
 
             output_texts.append(f"###\n{content}")
-        except Exception as e:
+        except Exception:
             logger.info(f"Url: {url} failed to load.")
 
     # Combine into single text block
