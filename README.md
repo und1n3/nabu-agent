@@ -102,13 +102,7 @@ HA_URL=...                         # Home Assistant instance URL (e.g., http://h
 Run the agent with an audio file:
 
 ```bash
-nabu-agent /path/to/audio/file.wav
-```
-
-Or using Python module:
-
-```bash
-python -m nabu_agent.main /path/to/audio/file.wav
+uv run nabu-agent /path/to/audio/file.wav
 ```
 
 ### Programmatic Usage
