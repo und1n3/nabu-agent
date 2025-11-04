@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def stt(state: MainGraphState) -> MainGraphState:
-    logger.info("--- STT --- ")
+    logger.info("--- Whisper Speech To Text --- ")
     result = execute_stt(input=state["input"])
     final_result = ""
     for i in result:
