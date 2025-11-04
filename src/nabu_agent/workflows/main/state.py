@@ -8,6 +8,8 @@ class MainGraphState(TypedDict):
     input: bytes
     original_language: str
     english_command: str
+    routing_ok: bool
+    feedback: str
     question_type: QuestionType
     spotify_command: SpotifyType
     spotify_query: str

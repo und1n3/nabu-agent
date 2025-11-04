@@ -5,13 +5,20 @@ from dotenv import load_dotenv
 from ...data.preestablished_commands import party_commands
 from ...tools.agents import (
     execute_classifier_agent,
+    execute_evaluator_agent,
     execute_ha_command,
     execute_party_sentence,
     execute_search_text,
     execute_stt,
     execute_translator,
 )
-from ...utils.schemas import Classifier, PartySentence, QuestionType, Translator
+from ...utils.schemas import (
+    Classifier,
+    Evaluator,
+    PartySentence,
+    QuestionType,
+    Translator,
+)
 from ...workflows.main.state import MainGraphState
 
 load_dotenv()
@@ -48,10 +55,21 @@ def enroute_question(state: MainGraphState) -> MainGraphState:
     result: Classifier = execute_classifier_agent(
         english_command=state["english_command"],
         preestablished_commands_schema=party_commands,
+        feedback=state.get("feedback", None),
     )
-    state["question_type"]: QuestionType = result.classification
-    logger.info(f"Enrouting to: {result.classification}")
+    state["question_type"] = result.classification
+    logger.info(f"Category Classification: {result.classification}")
     return state
+
+
+def verify_routing(state: MainGraphState) -> MainGraphState:
+    logger.info("--- Evaluating Routing ---")
+    result: Evaluator = execute_evaluator_agent(
+        original_command=state["english_command"],
+        routed_question=state.get("question_type", None),
+    )
+    state["routing_ok"] = result.is_correct
+    state["feedback"] = result.feedback
 
 
 def pre_established_commands(state: MainGraphState) -> MainGraphState:

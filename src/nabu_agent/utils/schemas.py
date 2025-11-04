@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 
 class QuestionType(str, Enum):
     spotify = "Spotify Command"
-    internet = "Internet Search"
+    knowledge = "Knowledge Question"
+    weather = "Weather API"
     party = "Party Mode"
-    homeassistant = "HA Command"
+    homeassistant = "Domotics Routing"
 
 
 class SpotifyType(str, Enum):
@@ -43,6 +44,16 @@ class Translator(BaseModel):
 class Classifier(BaseModel):
     classification: QuestionType = Field(
         description="Classification of the command given into: internet (internet search), spotify (play music), party (one of the preestablished commands) or homeassistant (for example turn on the light)."
+    )
+
+
+class Evaluator(BaseModel):
+    is_correct: bool = Field(
+        description="The given command and the routed question type match. The question has been correctly assigned."
+    )
+    feedback: str = Field(
+        description="A feedback comment to improve the question routing in case it has not been routed correctly.",
+        default=None,
     )
 
 

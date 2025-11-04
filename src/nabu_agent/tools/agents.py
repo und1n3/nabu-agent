@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from ..tools.web_loader import search_and_fetch
 from ..utils.schemas import (
     Classifier,
+    Evaluator,
     PartySentence,
     QuestionType,
     SpotifyClassifier,
@@ -51,23 +52,27 @@ def execute_stt(input: bytes):
 
 
 def execute_classifier_agent(
-    english_command, preestablished_commands_schema
+    english_command: str, preestablished_commands_schema: dict, feedback: str
 ) -> Classifier:
     llm = get_model()
     structured_llm_grader = llm.with_structured_output(Classifier)
 
     system = """
-    You must assess if the given text is one of the prestablished commands, a question that needs internet access or a command to play music in spotify.
-    The preestablished commands are in the format {{trigger_sentence : description of the type of answer you have to say}}
-            
-            - preestablished_command  (exact match or fuzzy match; return matched_trigger)
-            - spotify                (user wants to play music/radio)
-            - web_search             (user asks a general/up-to-date question requiring internet)
+    You are an assistant and expert text classifier. Classifiy the given command into one of the possible categories.
+    ## Categories:
+    - Spotify Command: Command is related to playing music, pausing music , playing the radio or turining up or down the volume.
+    - Knowledge Question: Commands asking about information. It does not include weather related questions.
+    - Domotics Routing: Commands asking about a homeassistant or a domotic related task. Related to turning on or off lights or the fan.
+    - Weather API: Commands asking about the weather, if it will be sunny, rainy, cloudy. Route here if it is asking about hanging the clothes.
+    - Party Mode: Commands in the list of preestablished commands. These are easter eggs.
 
-    **INSTRUCTIONS**:
-    - Think thoroughly what time of command you are asked. it should fall within one of the given categories
-    - Decide whether it should go for the spotify command (playing music, play radio), for a search result in the web (a question about general or up to date knowledge), if it is found within the prestablished commands (given list)
-      or is a homeassitant_command (turn on the light, what devices I have?)
+    ## Task
+    - Think step by step.
+    - Route the input command into the most appropiate category type.
+    - You may be given feedback to help with the routing, use it to decide the category.
+
+    ## Output Format
+    - classification : Question type category.
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -75,9 +80,10 @@ def execute_classifier_agent(
             ("system", system),
             (
                 "human",
-                """- command:  {text}
-                  - prestablished commands: {preestablished_commands_schema}
-                  - Question categories: {question_categories}
+                """
+                  - Command:  {english_command}
+                  - Prestablished commands: {preestablished_commands_schema}
+                  - feedback: {feedback}
                   """,
             ),
         ]
@@ -88,8 +94,50 @@ def execute_classifier_agent(
     result: Classifier = classifier.invoke(
         {
             "preestablished_commands_schema": preestablished_commands_schema,
-            "text": english_command,
-            "question_categories": QuestionType,
+            "english_command": english_command,
+            "feedback": feedback,
+        }
+    )
+    return result
+
+
+def execute_evaluator_agent(
+    original_command: str, question_type: QuestionType
+) -> Evaluator:
+    llm = get_model()
+    structured_llm_evaluator = llm.with_structured_output(Evaluator)
+
+    system = """
+    You are an expert evaluator.
+    
+    ## Task:
+    - Assess if the original command and the question type match.
+    - If they do not match, give a detailed feedback for improvement.
+
+    ## Output format:
+    - is_correct: a boolean stating if the question type decided given is correct.
+    - feedback: a feedback comment to improve the question routing.
+    """
+
+    answer_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            (
+                "human",
+                """
+                  - Original command: {original_command}
+                  - Routed Question Type: {question_type}
+                  """,
+            ),
+        ]
+    )
+
+    evaluator: RunnableSequence = answer_prompt | structured_llm_evaluator
+
+    result: Classifier = evaluator.invoke(
+        {
+            "original_command": original_command,
+            "question_type": question_type.value,
         }
     )
     return result
@@ -164,15 +212,19 @@ def execute_translator(text: str, destination_language: str) -> Translator:
     structured_llm_grader = llm.with_structured_output(Translator)
 
     system = """
-    You are a language expert, you will be working mainly in catalan and english.Think thoroughly the meaning of the sentence and translate it to the best of your abilities. 
-    Translate word by word the given text. Be aware of double meanings in words, choose the correct translation.
-    Perform an intelligent translation, some words may be in another language if they are a song or arstist. take this into account.
+    You are an expert translator, you will be working mainly in catalan and english.
     
-    **INSTRUCTIONS:**
+    **Tasks:
+    - Think step by step. 
+    - Translate word by word the given text being aware of double meanings in words.
     - Detect the language of the given sentence 
-    - translate the text from the original language to the destination language. Return just the text translated.
+    - Translate the text from the original language to the destination language.
     - Do not translate people's artists' or albums names.
     
+    ## Output format
+    - Original Language : one word, e.g. catalan , english, spanish
+    - Translated text : The original sentence translated to the given destination language.
+
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(

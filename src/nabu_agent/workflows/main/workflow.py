@@ -11,9 +11,11 @@ load_dotenv()
 
 
 def decide_action(state: MainGraphState) -> QuestionType:
-    if "question_type" in state:
+    routing_ok = state.get("routed_correctly", None)
+
+    if routing_ok:
         return state["question_type"]
-    return END
+    return "Error in routing"
 
 
 def build_main_workflow() -> CompiledStateGraph:
@@ -22,8 +24,9 @@ def build_main_workflow() -> CompiledStateGraph:
     workflow.add_node("STT", nodes.stt)
     workflow.add_node("Translator", nodes.translate_to_english)
     workflow.add_node("Enrouting Question", nodes.enroute_question)
+    workflow.add_node("Routing Verification", nodes.verify_routing)
     workflow.add_node("Pre-stablished commands", nodes.pre_established_commands)
-    workflow.add_node("Internet search", nodes.internet_search)
+    workflow.add_node("Knowledge Question", nodes.internet_search)
     workflow.add_node("Spotify Command", build_spotify_workflow())
     workflow.add_node("Home Assistant Command", nodes.homeassistant)
     workflow.add_node("Finish Action", nodes.finish_action)
@@ -31,15 +34,18 @@ def build_main_workflow() -> CompiledStateGraph:
     workflow.set_entry_point("STT")
     workflow.add_edge("STT", "Translator")
     workflow.add_edge("Translator", "Enrouting Question")
+    workflow.add_edge("Enrouting Question", "Routing Verification")
+
     workflow.add_conditional_edges(
-        "Enrouting Question",
+        "Routing Verification",
         decide_action,
         {
-            QuestionType.internet.value: "Internet search",
+            "Error in routing": "Enrouting Question",
+            QuestionType.knowledge.value: "Knowledge Question",
+            QuestionType.weather.value: "Weather API",
             QuestionType.party.value: "Pre-stablished commands",
             QuestionType.spotify.value: "Spotify Command",
             QuestionType.homeassistant.value: "Home Assistant Command",
-            END: END,
         },
     )
     workflow.add_edge("Pre-stablished commands", "Finish Action")
