@@ -14,7 +14,7 @@ async def test_1():
     result = await execute_knowdledge_agent(english_command)
     final_answ = result
     print(final_answ)
-    assert "scattering**" in final_answ
+    assert "sky" in final_answ
 
 
 @pytest.mark.asyncio

@@ -39,7 +39,7 @@ def get_model() -> ChatOpenAI:
         api_key=os.environ["LLM_API_KEY"],
         base_url=os.environ["LLM_BASE_URL"],
         temperature=0.1,
-        top_p=1,
+        top_p=0.5,
     )
     return model
 
