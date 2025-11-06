@@ -316,10 +316,10 @@ def execute_tool_agent(english_command: str, tools: dict):
     response = agent.invoke(
         {"messages": [{"role": "user", "content": english_command}]}
     )
-    return response
+    return response["messages"][-1].content
 
 
-async def execute_ha_command(english_command):
+async def execute_ha_command(english_command: str):
     ha_token = os.environ["HA_TOKEN"]
     ha_url = os.environ["HA_URL"]
     client = MultiServerMCPClient(
@@ -334,24 +334,38 @@ async def execute_ha_command(english_command):
         }
     )
     tools = await client.get_tools()
+    system_prompt = """
+    You are a tool calling agent. You are a given set of tools and should choose the most adient one.
 
-    llm = get_model().bind_tools(tools)
-    result = await llm.ainvoke(english_command)
-    for tool_call in result.tool_calls:
-        tool_name = tool_call["name"]
-        tool_args = tool_call.get("args", {})
-        tool = next(t for t in tools if t.name == tool_name)
-        try:
-            tool_result = await tool.ainvoke(tool_args)
+    ## Task: 
+    - Given a command, decide which tool should be called.
+    - If none matches the command, use the most similar one.
+    - Call the tool and provide a summary of the result.
+    """
+    agent = create_agent(
+        model=get_model(),
+        tools=tools,
+        system_prompt=system_prompt,
+    )
 
-            followup = await llm.ainvoke(
-                [
-                    f"The original prompt is: {english_command}, parse the result of the tool following the instructions:",
-                    result,
-                    tool_result,
-                ]
-            )
-        except Exception:
-            return "Error calling tools in HA command"
-        return followup.content
-    return result
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": english_command}]}
+    )
+    # for tool_call in result.tool_calls:
+    #     tool_name = tool_call["name"]
+    #     tool_args = tool_call.get("args", {})
+    #     tool = next(t for t in tools if t.name == tool_name)
+    #     try:
+    #         tool_result = await tool.ainvoke(tool_args)
+
+    #         followup = await agent.ainvoke(
+    #             [
+    #                 f"The original prompt is: {english_command}, parse the result of the tool following the instructions:",
+    #                 result,
+    #                 tool_result,
+    #             ]
+    #         )
+    #     except Exception:
+    #         return "Error calling tools in HA command"
+    #     return followup.content
+    return result["messages"][-1].content
