@@ -27,6 +27,7 @@ def build_main_workflow() -> CompiledStateGraph:
     workflow.add_node("Routing Verification", nodes.verify_routing)
     workflow.add_node("Pre-stablished commands", nodes.pre_established_commands)
     workflow.add_node("Knowledge Question", nodes.internet_search)
+    workflow.add_node("API Call", nodes.api_call)
     workflow.add_node("Spotify Command", build_spotify_workflow())
     workflow.add_node("Home Assistant Command", nodes.homeassistant)
     workflow.add_node("Finish Action", nodes.finish_action)
@@ -42,7 +43,7 @@ def build_main_workflow() -> CompiledStateGraph:
         {
             "Error in routing": "Enrouting Question",
             QuestionType.knowledge.value: "Knowledge Question",
-            QuestionType.weather.value: "Weather API",
+            QuestionType.api_call.value: "API Call",
             QuestionType.party.value: "Pre-stablished commands",
             QuestionType.spotify.value: "Spotify Command",
             QuestionType.homeassistant.value: "Home Assistant Command",

@@ -11,7 +11,10 @@ from ...tools.agents import (
     execute_search_text,
     execute_stt,
     execute_translator,
+    execute_tool_agent,
 )
+from ...tools.misc import get_weather
+
 from ...utils.schemas import (
     Classifier,
     Evaluator,
@@ -91,6 +94,20 @@ def internet_search(state: MainGraphState) -> MainGraphState:
 
     state["final_answer"] = search
 
+    return state
+
+
+def api_call(state: MainGraphState) -> MainGraphState:
+    """Tool Calling agent. External APIs"""
+    tools = [
+        {
+            "name": "get_weather()",
+            "description": "Call openweather api to retrieve the city's weather.",
+            "func": get_weather,
+            "args": {"city": "City Name", "date": "Literal: 'today' or 'tomorrow'"},
+        }
+    ]
+    result = execute_tool_agent(state["english_command"], tools)
     return state
 
 

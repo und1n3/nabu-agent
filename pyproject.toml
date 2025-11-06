@@ -5,12 +5,15 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "faster-whisper>=1.2.0",
-    "langchain-community>=0.3.26",
-    "langchain-mcp-adapters>=0.1.10",
-    "langchain-openai>=0.3.33",
-    "langgraph>=0.4.8",
-    "pydantic>=2.11.7",
+    "faster-whisper>=1.2.1",
+    "geopy>=2.4.1",
+    "langchain>=1.0.3",
+    "langchain-community>=0.4.1",
+    "langchain-mcp-adapters>=0.1.12",
+    "langchain-openai>=1.0.2",
+    "langgraph>=1.0.1",
+    "openmeteo-requests>=1.7.4",
+    "pydantic>=2.11.9",
     "python-dotenv>=1.1.1",
     "spotipy>=2.25.1",
 ]

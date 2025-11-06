@@ -8,6 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSequence
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
+from langchain.agents import create_agent
 
 from ..tools.web_loader import search_and_fetch
 from ..utils.schemas import (
@@ -265,11 +266,15 @@ def execute_spotify_classifier_agent(text) -> SpotifyClassifier:
     Example 3:
         - Command: play radio Crim
         - Answer: {{type: radio}}
-    Instructions:
+    
+    ##Task:
     - Translate the question into english.
     - Decide which of the given Spotify commands suits best [radio, song, playlist or album]. If radio mentioned, type is radio.
     - Return also the key word(s) to search for. For example, given a song it would be the song title, radio or playlist would be the name, album would be title . Also the artist if given
     
+    ## Output Format:
+    - classification: One of "track", "album", "artist", "playlist" or "radio"
+    - key word: the name of the artist, playlist, track , radio or album.
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -291,6 +296,27 @@ def execute_spotify_classifier_agent(text) -> SpotifyClassifier:
     )
 
     return result
+
+
+def execute_tool_agent(english_command: str, tools: dict):
+    tool_description = (
+        f"{x['name']}:{x['description']}. Args: {x['args']}\n" for x in tools
+    )
+    system_prompt = f"""
+    You are a tool calling agent. You have the following tools: {tool_description}
+    ## Task: 
+    - Given a command, decide which tool should be called.
+    - Call the tool and provide the final result.
+    """
+    agent = create_agent(
+        model=get_model(),
+        tools=[x["func"] for x in tools],
+        system_prompt=system_prompt,
+    )
+    response = agent.invoke(
+        {"messages": [{"role": "user", "content": english_command}]}
+    )
+    return response
 
 
 async def execute_ha_command(english_command):

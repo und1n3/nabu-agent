@@ -75,5 +75,5 @@ class SpotifyClassifier(BaseModel):
     key_word: str = Field(
         description="Key artist, track or playlist to search for in Spotify. Between 1 and 10 words all in one line",
         min_length=1,
-        max_length=10,
+        max_length=20,
     )
