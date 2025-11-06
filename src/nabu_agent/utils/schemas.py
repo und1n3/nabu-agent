@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class QuestionType(str, Enum):
     spotify = "Spotify Command"
     knowledge = "Knowledge Question"
-    weather = "Weather API"
+    api_call = "API Calls"
     party = "Party Mode"
     homeassistant = "Domotics Routing"
 
@@ -17,6 +17,11 @@ class SpotifyType(str, Enum):
     ALBUM = "album"  # play an artist’s album
     PLAYLIST = "playlist"  # play a playlist
     RADIO = "radio"  # play radio (artist or song radio)
+
+
+class SpotifyAction(str, Enum):
+    PLAY = "play music"
+    OTHER = "other actions"
 
 
 class Summarizer(BaseModel):
@@ -33,9 +38,6 @@ class STT(BaseModel):
 
 
 class Translator(BaseModel):
-    original_language: str = Field(
-        description="The language the input command is written in. Just one word."
-    )
     translated_command: str = Field(
         description="The input command translated from the original language to the defined destination language. Be accurate. If there is a name or an artist in the command, do not translate it."
     )
@@ -76,4 +78,10 @@ class SpotifyClassifier(BaseModel):
         description="Key artist, track or playlist to search for in Spotify. Between 1 and 10 words all in one line",
         min_length=1,
         max_length=20,
+    )
+
+
+class SpotifyActionClassifier(BaseModel):
+    classification: SpotifyAction = Field(
+        description="PLAY if the action is to play music. Otherwise (pause, next track, etc.) it should be OTHER."
     )

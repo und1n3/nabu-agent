@@ -1,6 +1,7 @@
 import logging
 import subprocess
 from typing import Optional
+from langchain.tools import tool
 
 import spotipy
 from dotenv import load_dotenv
@@ -74,3 +75,101 @@ def search_music(
         result_id = result["tracks"]["items"][0]["uri"]
 
     return result_id
+
+
+@tool
+def pause_music():
+    """
+    Pause the current Spotify playback on the configured device.
+
+    If no playback is active, this function has no effect.
+
+    Raises:
+        spotipy.SpotifyException: If the API request fails.
+    """
+    spotify_client = init_spotify()
+    playback = spotify_client.current_playback()
+    if playback and playback["device"]:
+        spotify_client.pause_playback(device_id=DEVICE_ID)
+
+
+@tool
+def next_song():
+    """
+    Skip to the next track in the current Spotify playback queue.
+
+    If no track is currently playing, the function has no effect.
+
+    Raises:
+        spotipy.SpotifyException: If the API request fails.
+    """
+    spotify_client = init_spotify()
+    spotify_client.next_track(device_id=DEVICE_ID)
+
+
+@tool
+def previous_song():
+    """
+    Go back to the previous track in the current Spotify playback queue.
+
+    If there is no previous track, this function has no effect.
+
+    Raises:
+        spotipy.SpotifyException: If the API request fails.
+    """
+    spotify_client = init_spotify()
+    spotify_client.previous_track(device_id=DEVICE_ID)
+
+
+@tool
+def volume_up(sum_vol=10):
+    """
+    Increase the Spotify playback volume by a specified amount.
+
+    Args:
+        sum_vol (int, optional): The number of percentage points to increase
+            the volume by. Defaults to 10.
+
+    Notes:
+        - The volume will not exceed 100%.
+        - If no active playback is found, a warning is logged.
+
+    Raises:
+        spotipy.SpotifyException: If the API request fails.
+    """
+    spotify_client = init_spotify()
+    playback = spotify_client.current_playback()
+    if playback and playback["device"]:
+        current_volume = playback["device"]["volume_percent"]
+        new_volume = min(current_volume + sum_vol, 100)
+        spotify_client.volume(new_volume, device_id=DEVICE_ID)
+        logger.info(f"Volume increased to {new_volume}%")
+    else:
+        logger.warning("No active playback device found.")
+
+
+@tool
+def volume_down(sum_vol=10):
+    """
+    Decrease the Spotify playback volume by a specified amount.
+
+    Args:
+        sum_vol (int, optional): The number of percentage points to decrease
+            the volume by. Defaults to 10.
+
+    Notes:
+        - The volume will not go below 0%.
+        - If no active playback is found, a warning is logged.
+
+    Raises:
+        spotipy.SpotifyException: If the API request fails.
+    """
+    spotify_client = init_spotify()
+    playback = spotify_client.current_playback()
+    if playback and playback["device"]:
+        current_volume = playback["device"]["volume_percent"]
+        new_volume = max(current_volume - sum_vol, 0)
+        spotify_client.volume(new_volume, device_id=DEVICE_ID)
+        logger.info(f"Volume decreased to {new_volume}%")
+    else:
+        logger.warning("No active playback device found.")

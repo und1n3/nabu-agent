@@ -13,10 +13,12 @@ dependencies = [
     "langchain-openai>=1.0.2",
     "langgraph>=1.0.1",
     "openmeteo-requests>=1.7.4",
+    "playwright>=1.55.0",
     "pydantic>=2.11.9",
     "pytest-asyncio>=1.2.0",
     "python-dotenv>=1.1.1",
     "spotipy>=2.25.1",
+    "trafilatura>=2.0.0",
 ]
 
 [dependency-groups]

@@ -1,8 +1,5 @@
-import os
-import requests
 from langchain.tools import tool
 from typing import Literal
-from datetime import datetime, timedelta
 import openmeteo_requests
 from dotenv import load_dotenv
 from geopy.geocoders import Nominatim

@@ -26,7 +26,7 @@ def build_main_workflow() -> CompiledStateGraph:
     workflow.add_node("Enrouting Question", nodes.enroute_question)
     workflow.add_node("Routing Verification", nodes.verify_routing)
     workflow.add_node("Pre-stablished commands", nodes.pre_established_commands)
-    workflow.add_node("Knowledge Question", nodes.internet_search)
+    workflow.add_node("Knowledge Question", nodes.knowledge_answerer)
     workflow.add_node("API Call", nodes.api_call)
     workflow.add_node("Spotify Command", build_spotify_workflow())
     workflow.add_node("Home Assistant Command", nodes.homeassistant)
