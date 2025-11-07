@@ -1,5 +1,6 @@
-from src.nabu_agent.tools.agents import execute_knowdledge_agent
 from dotenv import load_dotenv
+
+from src.nabu_agent.tools.agents import execute_knowdledge_agent
 
 load_dotenv()
 import pytest

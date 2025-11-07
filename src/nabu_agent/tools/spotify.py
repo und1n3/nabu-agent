@@ -1,10 +1,11 @@
 import logging
+import os
 import subprocess
 from typing import Optional
-from langchain.tools import tool
 
 import spotipy
 from dotenv import load_dotenv
+from langchain.tools import tool
 from spotipy.oauth2 import SpotifyOAuth
 
 from ..utils.schemas import SpotifyType
@@ -25,17 +26,17 @@ scope = [
     "user-library-read",
 ]
 
-DEVICE_NAME = "librespot"
-DEVICE_ID = "7c28ab8a5c9512e4266ac7cb756312c82ee43d7e"
+
+DEVICE_ID = os.getenv("SPOTIFY_DEVICE_ID")
 
 
 def init_spotify() -> spotipy.Spotify:
     spotify_client = spotipy.Spotify(
-        auth_manager=SpotifyOAuth(scope=scope, cache_path="/.cache")
+        auth_manager=SpotifyOAuth(scope=scope, cache_path=".cache")
     )
     device_active = False
     for device in spotify_client.devices()["devices"]:
-        if device["id"] == "7c28ab8a5c9512e4266ac7cb756312c82ee43d7e":
+        if device["id"] == DEVICE_ID:
             device_active = True
             logger.info("librespot device already active")
             break
@@ -51,15 +52,31 @@ def play_music(
     context_uri: Optional[str] = None,
     uris: Optional[str] = None,
 ) -> None:
-    if context_uri:
-        spotify_client.start_playback(device_id=DEVICE_ID, context_uri=context_uri)
-    else:
-        spotify_client.start_playback(device_id=DEVICE_ID, uris=[uris])
+    # Try adding to queue
+    logging.info("--- Playing Music ---")
+
+    logger.info(f"context uri: {context_uri} - uris {uris}")
+    try:
+        if context_uri:
+            spotify_client.add_to_queue(device_id=DEVICE_ID, uri=context_uri)
+            spotify_client.next_track(device_id=DEVICE_ID)
+
+        else:
+            spotify_client.add_to_queue(device_id=DEVICE_ID, uri=uris)
+            spotify_client.next_track(device_id=DEVICE_ID)
+
+    except:
+        if context_uri:
+            spotify_client.start_playback(device_id=DEVICE_ID, context_uri=context_uri)
+        else:
+            spotify_client.start_playback(device_id=DEVICE_ID, uris=[uris])
 
 
 def search_music(
     spotify_client: spotipy.Spotify, criteria_type: SpotifyType, query: str
 ):
+    logging.info("--- Searching music ---")
+
     if criteria_type == SpotifyType.RADIO:
         criteria_type = SpotifyType.PLAYLIST
         query = "this%20is%20" + query
@@ -87,10 +104,15 @@ def pause_music():
     Raises:
         spotipy.SpotifyException: If the API request fails.
     """
-    spotify_client = init_spotify()
-    playback = spotify_client.current_playback()
-    if playback and playback["device"]:
-        spotify_client.pause_playback(device_id=DEVICE_ID)
+    logging.info("--- Pausing Music ---")
+    try:
+        spotify_client = init_spotify()
+        playback = spotify_client.current_playback()
+        if playback and playback["device"] == DEVICE_ID:
+            spotify_client.pause_playback(device_id=DEVICE_ID)
+        return "Done"
+    except Exception as e:
+        return f"{e}"
 
 
 @tool
@@ -103,8 +125,13 @@ def next_song():
     Raises:
         spotipy.SpotifyException: If the API request fails.
     """
-    spotify_client = init_spotify()
-    spotify_client.next_track(device_id=DEVICE_ID)
+    logging.info("--- Next Song ---")
+    try:
+        spotify_client = init_spotify()
+        spotify_client.next_track(device_id=DEVICE_ID)
+        return "Done"
+    except Exception as e:
+        return f"{e}"
 
 
 @tool
@@ -117,18 +144,19 @@ def previous_song():
     Raises:
         spotipy.SpotifyException: If the API request fails.
     """
-    spotify_client = init_spotify()
-    spotify_client.previous_track(device_id=DEVICE_ID)
+    logging.info("--- Previous Song ---")
+    try:
+        spotify_client = init_spotify()
+        spotify_client.previous_track(device_id=DEVICE_ID)
+        return "Done"
+    except Exception as e:
+        return f"{e}"
 
 
 @tool
-def volume_up(sum_vol=10):
+def volume_up():
     """
     Increase the Spotify playback volume by a specified amount.
-
-    Args:
-        sum_vol (int, optional): The number of percentage points to increase
-            the volume by. Defaults to 10.
 
     Notes:
         - The volume will not exceed 100%.
@@ -137,25 +165,26 @@ def volume_up(sum_vol=10):
     Raises:
         spotipy.SpotifyException: If the API request fails.
     """
-    spotify_client = init_spotify()
-    playback = spotify_client.current_playback()
-    if playback and playback["device"]:
-        current_volume = playback["device"]["volume_percent"]
-        new_volume = min(current_volume + sum_vol, 100)
-        spotify_client.volume(new_volume, device_id=DEVICE_ID)
-        logger.info(f"Volume increased to {new_volume}%")
-    else:
-        logger.warning("No active playback device found.")
+    logging.info("--- Volume up ---")
+    try:
+        spotify_client = init_spotify()
+        playback = spotify_client.current_playback()
+        if playback and playback["device"]:
+            current_volume = playback["device"]["volume_percent"]
+            new_volume = min(current_volume + 10, 100)
+            spotify_client.volume(new_volume, device_id=DEVICE_ID)
+            logger.info(f"Volume increased to {new_volume}%")
+        else:
+            logger.warning("No active playback device found.")
+        return "Done"
+    except Exception as e:
+        return f"{e}"
 
 
 @tool
-def volume_down(sum_vol=10):
+def volume_down():
     """
     Decrease the Spotify playback volume by a specified amount.
-
-    Args:
-        sum_vol (int, optional): The number of percentage points to decrease
-            the volume by. Defaults to 10.
 
     Notes:
         - The volume will not go below 0%.
@@ -164,12 +193,17 @@ def volume_down(sum_vol=10):
     Raises:
         spotipy.SpotifyException: If the API request fails.
     """
-    spotify_client = init_spotify()
-    playback = spotify_client.current_playback()
-    if playback and playback["device"]:
-        current_volume = playback["device"]["volume_percent"]
-        new_volume = max(current_volume - sum_vol, 0)
-        spotify_client.volume(new_volume, device_id=DEVICE_ID)
-        logger.info(f"Volume decreased to {new_volume}%")
-    else:
-        logger.warning("No active playback device found.")
+    logging.info("--- Volume down ---")
+    try:
+        spotify_client = init_spotify()
+        playback = spotify_client.current_playback()
+        if playback and playback["device"]:
+            current_volume = playback["device"]["volume_percent"]
+            new_volume = max(current_volume - 10, 0)
+            spotify_client.volume(new_volume, device_id=DEVICE_ID)
+            logger.info(f"Volume decreased to {new_volume}%")
+        else:
+            logger.warning("No active playback device found.")
+        return "Done"
+    except Exception as e:
+        return f"{e}"

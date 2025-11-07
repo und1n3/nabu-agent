@@ -50,12 +50,12 @@ class Classifier(BaseModel):
 
 
 class Evaluator(BaseModel):
+    feedback: str = Field(
+        description="A short feedback comment to improve the question routing in case it has not been routed correctly.",
+        default=None,
+    )
     is_correct: bool = Field(
         description="The given command and the routed question type match. The question has been correctly assigned."
-    )
-    feedback: str = Field(
-        description="A feedback comment to improve the question routing in case it has not been routed correctly.",
-        default=None,
     )
 
 
@@ -85,3 +85,4 @@ class SpotifyActionClassifier(BaseModel):
     classification: SpotifyAction = Field(
         description="PLAY if the action is to play music. Otherwise (pause, next track, etc.) it should be OTHER."
     )
+    reasoning: str = Field(description="short reasoning")

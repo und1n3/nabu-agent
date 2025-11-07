@@ -2,22 +2,12 @@ import logging
 
 from dotenv import load_dotenv
 
-from ...tools.agents import (
-    execute_spotify_classifier_agent,
-    execute_tool_agent,
-    execute_spotify_decide_action,
-)
-from ...tools.spotify import (
-    init_spotify,
-    play_music,
-    search_music,
-    pause_music,
-    next_song,
-    previous_song,
-    volume_down,
-    volume_up,
-)
-from ...utils.schemas import SpotifyClassifier, SpotifyType, SpotifyAction
+from ...tools.agents import (execute_spotify_classifier_agent,
+                             execute_spotify_decide_action, execute_tool_agent)
+from ...tools.spotify import (init_spotify, next_song, pause_music, play_music,
+                              previous_song, search_music, volume_down,
+                              volume_up)
+from ...utils.schemas import SpotifyAction, SpotifyClassifier, SpotifyType
 from ...workflows.main.state import MainGraphState
 
 load_dotenv()
@@ -28,6 +18,7 @@ logger = logging.getLogger(__name__)
 def decide_action(state: MainGraphState) -> MainGraphState:
     logger.info(" --- Decide Spotify action ---")
     result: SpotifyAction = execute_spotify_decide_action(text=state["english_command"])
+    logger.info(f"Decided Spotify Action: {result}")
     state["spotify_action"] = result
     return state
 
@@ -35,7 +26,7 @@ def decide_action(state: MainGraphState) -> MainGraphState:
 def other_functionalities(state: MainGraphState) -> MainGraphState:
     logger.info("--- Other Spotify Commands ---")
     result: str = execute_tool_agent(
-        state["english_command"],
+        english_command=state["english_command"],
         tools=[pause_music, next_song, previous_song, volume_down, volume_up],
     )
     state["final_answer"] = result

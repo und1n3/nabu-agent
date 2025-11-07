@@ -3,25 +3,13 @@ import logging
 from dotenv import load_dotenv
 
 from ...data.preestablished_commands import party_commands
-from ...tools.agents import (
-    execute_classifier_agent,
-    execute_evaluator_agent,
-    execute_ha_command,
-    execute_party_sentence,
-    execute_knowdledge_agent,
-    execute_stt,
-    execute_translator,
-    execute_tool_agent,
-)
+from ...tools.agents import (execute_classifier_agent, execute_evaluator_agent,
+                             execute_ha_command, execute_knowdledge_agent,
+                             execute_party_sentence, execute_stt,
+                             execute_tool_agent, execute_translator)
 from ...tools.misc import get_weather
-
-from ...utils.schemas import (
-    Classifier,
-    Evaluator,
-    PartySentence,
-    QuestionType,
-    Translator,
-)
+from ...utils.schemas import (Classifier, Evaluator, PartySentence,
+                              QuestionType, Translator)
 from ...workflows.main.state import MainGraphState
 
 load_dotenv()
@@ -32,24 +20,27 @@ logger = logging.getLogger(__name__)
 def stt(state: MainGraphState) -> MainGraphState:
     logger.info("--- Whisper Speech To Text --- ")
     result, info = execute_stt(input=state["input"])
+    state["input"] = None
     final_result = ""
     for i in result:
-        logger.info(i.text)
         final_result += i.text
     state["stt_output"] = final_result
-    state["original_language"] = info.language
+    state["original_language"] = "spanish" if info.language == "es" else "catalan"
+    logger.info(f"Transcription from {info.language}: {final_result}")
     return state
 
 
 def translate_to_english(state: MainGraphState) -> MainGraphState:
     logger.info("--- Translating to english --- ")
-    result: Translator = execute_translator(
+    result: str = execute_translator(
         text=state["stt_output"],
         destination_language="english",
         original_language=state["original_language"],
     )
-    state["english_command"] = result.translated_command
-    logger.info(f"Translated text: {result.translated_command}")
+    state["english_command"] = result
+    logger.info(
+        f"Translated text (from {state['original_language']} to english): {result}"
+    )
     return state
 
 
@@ -67,12 +58,15 @@ def enroute_question(state: MainGraphState) -> MainGraphState:
 
 def verify_routing(state: MainGraphState) -> MainGraphState:
     logger.info("--- Evaluating Routing ---")
+    state["retries"] = state.get("retries", 0)
+    state["retries"] += 1
     result: Evaluator = execute_evaluator_agent(
         original_command=state["english_command"],
-        routed_question=state.get("question_type", None),
+        question_type=state.get("question_type", None),
     )
     state["routing_ok"] = result.is_correct
     state["feedback"] = result.feedback
+    return state
 
 
 def pre_established_commands(state: MainGraphState) -> MainGraphState:
@@ -86,10 +80,12 @@ def pre_established_commands(state: MainGraphState) -> MainGraphState:
     return state
 
 
-def knowledge_answerer(state: MainGraphState) -> MainGraphState:
+async def knowledge_answerer(state: MainGraphState) -> MainGraphState:
     logger.info("--- Knowdledge Node ---")
 
-    search: str = execute_knowdledge_agent(english_command=state["english_command"])
+    search: str = await execute_knowdledge_agent(
+        english_command=state["english_command"]
+    )
     logger.info(f"Result from the web search: {search}")
 
     state["final_answer"] = search
@@ -119,7 +115,7 @@ def finish_action(state: MainGraphState) -> MainGraphState:
         ],  # original language of the user voice command
         original_language="english",
     )
-    state["final_answer_translated"] = result.translated_command
+    state["final_answer_translated"] = result
     logger.info(f"Translated Sentence: {state['final_answer_translated']}")
 
     return state

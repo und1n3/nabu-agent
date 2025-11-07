@@ -1,27 +1,21 @@
 import logging
 import os
-from io import BytesIO
 from datetime import datetime
+from io import BytesIO
+
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
+from langchain.agents import create_agent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSequence
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_agent
 
 from ..tools.web_loader import search_internet
-from ..utils.schemas import (
-    Classifier,
-    Evaluator,
-    PartySentence,
-    QuestionType,
-    SpotifyClassifier,
-    SpotifyAction,
-    SpotifyActionClassifier,
-    Summarizer,
-    Translator,
-)
+from ..utils.schemas import (Classifier, Evaluator, PartySentence,
+                             QuestionType, SpotifyAction,
+                             SpotifyActionClassifier, SpotifyClassifier,
+                             Summarizer, Translator)
 
 logger = logging.getLogger(__name__)
 model_size = os.getenv("FASTER_WHISPER_MODEL")
@@ -50,7 +44,7 @@ def execute_stt(input: bytes):
         model = WhisperModel(model_size, device="cuda", compute_type="float16")
     else:
         model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    result, info = model.transcribe(BytesIO(input), beam_size=5)
+    result, info = model.transcribe(BytesIO(input), beam_size=5, language="ca")
     return result, info
 
 
@@ -60,15 +54,17 @@ def execute_classifier_agent(
     llm = get_model()
     structured_llm_grader = llm.with_structured_output(Classifier)
 
-    system = """
+    system = f"""
     You are an assistant and expert text classifier. Classifiy the given command into one of the possible categories.
+    - The possible question types are the following:
+        {[q.value for q in QuestionType]}
     ## Categories:
     - Spotify Command: Command is related to playing music, pausing music , playing the radio or turining up or down the volume.
     - Knowledge Question: Commands asking about information. It does not include weather related questions.
-    - Domotics Routing: Commands asking about a homeassistant or a domotic related task. Related to turning on or off lights or the fan.
-    - Weather API: Commands asking about the weather, if it will be sunny, rainy, cloudy. Route here if it is asking about hanging the clothes.
+    - Home Assistantg: Commands asking about a homeassistant or a domotic related task. Related to turning on or off lights or the fan.
+    - API Call: Commands asking about the weather, if it will be sunny, rainy, cloudy. Route here if it is asking about hanging the clothes.
     - Party Mode: Commands in the list of preestablished commands. These are easter eggs.
-
+    
     ## Task
     - Think step by step.
     - Route the input command into the most appropiate category type.
@@ -110,16 +106,27 @@ def execute_evaluator_agent(
     llm = get_model()
     structured_llm_evaluator = llm.with_structured_output(Evaluator)
 
-    system = """
+    system = f"""
     You are an expert evaluator.
     
     ## Task:
-    - Assess if the original command and the question type match.
+    - Think step by step 
+    - Assess if the original command and the question type are the most similar between the possible options.
     - If they do not match, give a detailed feedback for improvement.
+    - The possible question types are the following. :
+        {[q.value for q in QuestionType]}
+
+    ## Categories explanation:
+    - Spotify Command: Command is related to playing music, adding music to queue, pausing music , playing the radio or turining up or down the volume, etc.
+    - Knowledge Question: Commands asking about information. It does not include weather related questions.
+    - Home Assistantg: Commands asking about a homeassistant or a domotic related task. Related to turning on or off lights or the fan.
+    - API Call: Commands asking about the weather, if it will be sunny, rainy, cloudy. Route here if it is asking about hanging the clothes.
+    - Party Mode: Commands in the list of preestablished commands. These are easter eggs.
 
     ## Output format:
+    - feedback: a short feedback comment to improve the question routing if it is incorrect.
     - is_correct: a boolean stating if the question type decided given is correct.
-    - feedback: a feedback comment to improve the question routing.
+
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -137,7 +144,7 @@ def execute_evaluator_agent(
 
     evaluator: RunnableSequence = answer_prompt | structured_llm_evaluator
 
-    result: Classifier = evaluator.invoke(
+    result: Evaluator = evaluator.invoke(
         {
             "original_command": original_command,
             "question_type": question_type.value,
@@ -207,20 +214,19 @@ def execute_party_sentence(text, preestablished_commands_schema) -> PartySentenc
 
 def execute_translator(
     text: str, destination_language: str, original_language: str = "english"
-) -> Translator:
+) -> str:
     llm = get_model()
-    structured_llm_grader = llm.with_structured_output(Translator)
 
     system = f"""
-    You are an expert translator, you will be translating from {original_language} to {destination_language}
+    You are an expert translator, you will be given a sentence. Translate it from {original_language} to {destination_language}
+    
     **Tasks: 
     - Think step by step. 
     - Translate word by word the given text being aware of double meanings in words.
-    - Translate the text from the original language to the destination language.
     - Do not translate people's artists' or albums names.
     
     ## Output format
-    - Translated text : The original sentence translated to {destination_language}
+    - "The translated text"
 
     """
 
@@ -235,14 +241,14 @@ def execute_translator(
             ),
         ]
     )
-    traslator_llm: RunnableSequence = answer_prompt | structured_llm_grader
+    traslator_llm: RunnableSequence = answer_prompt | llm
 
-    result: Translator = traslator_llm.invoke(
+    result: dict = traslator_llm.invoke(
         {
             "text": text,
         }
     )
-    return result
+    return result.content
 
 
 def execute_spotify_classifier_agent(text) -> SpotifyClassifier:
@@ -296,20 +302,22 @@ def execute_spotify_decide_action(text) -> SpotifyAction:
     structured_llm_grader = llm.with_structured_output(SpotifyActionClassifier)
 
     system = """
-    You must decide if the user query is to play music or to do other actions such as pause music, get next track or previous track, turn volume up or down.
-    
+    You are a task router and classifier.
+
     ##Task:
-    - Decide which action suits best: PLAY (play music) or OTHER (pause, next, volume...)
+    - Decide which action suits best: PLAY (search and play given music) or OTHER (actions not related to a song or group, more like playback related like :pause, next track, previous track, volume...)
+    - Return the most similar option
 
     ## Output Format:
     - classification: either PLAY or OTHER
+    - reasoning : str with a short description.
     """
     answer_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system),
             (
                 "human",
-                """User command: \n\n {text} """,
+                """{text} """,
             ),
         ]
     )
@@ -321,11 +329,14 @@ def execute_spotify_decide_action(text) -> SpotifyAction:
             "text": text,
         }
     )
-
+    logger.info(f"reasoning: {result.reasoning}")
     return result.classification
 
 
-def execute_tool_agent(english_command: str, tools: list) -> str:
+def execute_tool_agent(
+    english_command: str,
+    tools: list,
+) -> str:
     # tool_description = (
     #     f"{x['name']}:{x['description']}. Args: {x['args']}\n" for x in tools
     # )
@@ -333,16 +344,18 @@ def execute_tool_agent(english_command: str, tools: list) -> str:
     You are a tool calling agent.
     ## Task: 
     - Given a command, decide which tool should be called.
-    - Call the tool and provide the final result.
+    - Call the tool and provide a short summary sentence of the result.
     """
     agent = create_agent(
         model=get_model(),
         tools=tools,
         system_prompt=system_prompt,
     )
+    logging.info("Agent created")
     response = agent.invoke(
         {"messages": [{"role": "user", "content": english_command}]}
     )
+    logging.info(response)
     return response["messages"][-1].content
 
 
@@ -367,7 +380,7 @@ async def execute_ha_command(english_command: str) -> str:
     ## Task: 
     - Given a command, decide which tool should be called.
     - If none matches the command, use the most similar one.
-    - Call the tool and provide a summary of the result.
+    - Call the tool and provide a short summary of the result.
     """
     agent = create_agent(
         model=get_model(),
