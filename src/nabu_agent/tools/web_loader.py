@@ -1,16 +1,14 @@
+import asyncio
 import logging
 import os
-from langchain.tools import tool
+from typing import List
 
+import httpx
+import trafilatura
 from dotenv import load_dotenv
+from langchain.tools import tool
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.utilities import SearxSearchWrapper
-
-import asyncio
-
-from typing import List
-import trafilatura
-import httpx
 from playwright.async_api import async_playwright
 
 logger = logging.getLogger(__name__)

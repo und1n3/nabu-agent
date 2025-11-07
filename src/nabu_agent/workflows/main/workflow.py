@@ -11,10 +11,11 @@ load_dotenv()
 
 
 def decide_action(state: MainGraphState) -> QuestionType:
-    routing_ok = state.get("routed_correctly", None)
+    routing_ok = state.get("routing_ok", None)
 
-    if routing_ok:
+    if routing_ok or state["retries"] > 2:
         return state["question_type"]
+
     return "Error in routing"
 
 

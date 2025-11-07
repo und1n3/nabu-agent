@@ -1,5 +1,6 @@
-from src.nabu_agent.tools.agents import execute_ha_command
 from dotenv import load_dotenv
+
+from src.nabu_agent.tools.agents import execute_ha_command
 
 load_dotenv()
 import pytest

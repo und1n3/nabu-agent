@@ -1,8 +1,9 @@
-from langchain.tools import tool
 from typing import Literal
+
 import openmeteo_requests
 from dotenv import load_dotenv
 from geopy.geocoders import Nominatim
+from langchain.tools import tool
 
 load_dotenv()
 WEATHER_CODES = {

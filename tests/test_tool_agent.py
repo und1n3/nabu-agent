@@ -1,5 +1,5 @@
-from src.nabu_agent.tools.misc import get_weather
 from src.nabu_agent.tools.agents import execute_tool_agent
+from src.nabu_agent.tools.misc import get_weather
 
 
 def test_1():
