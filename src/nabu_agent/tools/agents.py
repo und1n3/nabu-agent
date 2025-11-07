@@ -12,10 +12,16 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 
 from ..tools.web_loader import search_internet
-from ..utils.schemas import (Classifier, Evaluator, PartySentence,
-                             QuestionType, SpotifyAction,
-                             SpotifyActionClassifier, SpotifyClassifier,
-                             Summarizer, Translator)
+from ..utils.schemas import (
+    Classifier,
+    Evaluator,
+    PartySentence,
+    QuestionType,
+    SpotifyAction,
+    SpotifyActionClassifier,
+    SpotifyClassifier,
+    Translator,
+)
 
 logger = logging.getLogger(__name__)
 model_size = os.getenv("FASTER_WHISPER_MODEL")
@@ -23,10 +29,7 @@ load_dotenv()
 
 
 def get_model() -> ChatOpenAI:
-    # model = ChatOllama(
-    #     model="qwen3:30b", temperature=0.15, top_p=1 - 0.01, num_ctx=8192
-    # )
-    # model = ChatOllama(model="llama3.2")
+    # model = ChatOllama(model="qwen3:4b", temperature=0.15, top_p=0.5, num_ctx=16192)
     model = ChatOpenAI(
         # model="GPT-OSS-20B",
         model=os.environ["LLM_MODEL"],
@@ -216,18 +219,18 @@ def execute_translator(
     text: str, destination_language: str, original_language: str = "english"
 ) -> str:
     llm = get_model()
-
+    translator_llm = llm.with_structured_output(Translator)
     system = f"""
     You are an expert translator, you will be given a sentence. Translate it from {original_language} to {destination_language}
-    
-    **Tasks: 
-    - Think step by step. 
-    - Translate word by word the given text being aware of double meanings in words.
-    - Do not translate people's artists' or albums names.
-    
-    ## Output format
-    - "The translated text"
+        - Just do a light thinking and return ONLY the translated text
 
+    ## Tasks: 
+    - Translate the given text being aware of double meanings in words.
+    - Do not translate people's, artists' or albums names.
+    - return ONLY the translated text
+
+    ## Output format:
+    [translated text]
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -241,14 +244,14 @@ def execute_translator(
             ),
         ]
     )
-    traslator_llm: RunnableSequence = answer_prompt | llm
+    traslator_agent: RunnableSequence = answer_prompt | translator_llm
 
-    result: dict = traslator_llm.invoke(
+    result: Translator = traslator_agent.invoke(
         {
             "text": text,
         }
     )
-    return result.content
+    return result.translated_command
 
 
 def execute_spotify_classifier_agent(text) -> SpotifyClassifier:
@@ -341,7 +344,8 @@ def execute_tool_agent(
     #     f"{x['name']}:{x['description']}. Args: {x['args']}\n" for x in tools
     # )
     system_prompt = """
-    You are a tool calling agent.
+    You are a tool calling agent. Use the most appropiate tool within the ones you have available.
+    
     ## Task: 
     - Given a command, decide which tool should be called.
     - Call the tool and provide a short summary sentence of the result.
@@ -376,7 +380,8 @@ async def execute_ha_command(english_command: str) -> str:
     tools = await client.get_tools()
     system_prompt = """
     You are a tool calling agent. You are a given set of tools and should choose the most adient one.
-
+    If you have to interact with a device, first list all the current devices and their status, to know the name and status.
+    
     ## Task: 
     - Given a command, decide which tool should be called.
     - If none matches the command, use the most similar one.

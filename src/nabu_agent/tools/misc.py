@@ -120,10 +120,12 @@ def get_coords(city_name):
 @tool
 def get_weather(city: str = "Mataró", date: Literal["today", "tomorrow"] = "today"):
     """
-    Get the weather forecast
+    Get the weather forecast. This tool can be used to know the weather forecast for today or tomorrow.
+    Also if asked about being able to tend the clothes, or doing activities outside, refer to this tool.
+
     args:
-    - city (str) : The city name.
-    - date (str) : A literal for the day to get the weather for, either "today" or "tomorrow"
+    - city (str) : The city name. If not provided, use "Mataró".
+    - date (str) : A literal for the day to get the weather for, either "today" or "tomorrow". If not provided, use "today"
     """
 
     # get city's lat/lon

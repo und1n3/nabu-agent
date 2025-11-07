@@ -3,13 +3,24 @@ import logging
 from dotenv import load_dotenv
 
 from ...data.preestablished_commands import party_commands
-from ...tools.agents import (execute_classifier_agent, execute_evaluator_agent,
-                             execute_ha_command, execute_knowdledge_agent,
-                             execute_party_sentence, execute_stt,
-                             execute_tool_agent, execute_translator)
+from ...tools.agents import (
+    execute_classifier_agent,
+    execute_evaluator_agent,
+    execute_ha_command,
+    execute_knowdledge_agent,
+    execute_party_sentence,
+    execute_stt,
+    execute_tool_agent,
+    execute_translator,
+)
 from ...tools.misc import get_weather
-from ...utils.schemas import (Classifier, Evaluator, PartySentence,
-                              QuestionType, Translator)
+from ...utils.schemas import (
+    Classifier,
+    Evaluator,
+    PartySentence,
+    QuestionType,
+    Translator,
+)
 from ...workflows.main.state import MainGraphState
 
 load_dotenv()
@@ -108,7 +119,7 @@ def finish_action(state: MainGraphState) -> MainGraphState:
         state["final_answer"] = state["english_command"]
     logger.info(f"Sentence: {state['final_answer']}")
 
-    result = execute_translator(
+    result: str = execute_translator(
         text=state["final_answer"],
         destination_language=state[
             "original_language"

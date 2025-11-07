@@ -39,7 +39,8 @@ class STT(BaseModel):
 
 class Translator(BaseModel):
     translated_command: str = Field(
-        description="The input command translated from the original language to the defined destination language. Be accurate. If there is a name or an artist in the command, do not translate it."
+        description="The translated text in the expected language",
+        max_length=500,
     )
 
 
