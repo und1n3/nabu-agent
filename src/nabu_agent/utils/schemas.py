@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 
 class QuestionType(str, Enum):
     spotify = "Spotify Command"
-    internet = "Internet Search"
+    knowledge = "Knowledge Question"
+    api_call = "API Calls"
     party = "Party Mode"
-    homeassistant = "HA Command"
+    homeassistant = "Domotics Routing"
 
 
 class SpotifyType(str, Enum):
@@ -16,6 +17,11 @@ class SpotifyType(str, Enum):
     ALBUM = "album"  # play an artist’s album
     PLAYLIST = "playlist"  # play a playlist
     RADIO = "radio"  # play radio (artist or song radio)
+
+
+class SpotifyAction(str, Enum):
+    PLAY = "play music"
+    OTHER = "other actions"
 
 
 class Summarizer(BaseModel):
@@ -32,9 +38,6 @@ class STT(BaseModel):
 
 
 class Translator(BaseModel):
-    original_language: str = Field(
-        description="The language the input command is written in. Just one word."
-    )
     translated_command: str = Field(
         description="The input command translated from the original language to the defined destination language. Be accurate. If there is a name or an artist in the command, do not translate it."
     )
@@ -43,6 +46,16 @@ class Translator(BaseModel):
 class Classifier(BaseModel):
     classification: QuestionType = Field(
         description="Classification of the command given into: internet (internet search), spotify (play music), party (one of the preestablished commands) or homeassistant (for example turn on the light)."
+    )
+
+
+class Evaluator(BaseModel):
+    is_correct: bool = Field(
+        description="The given command and the routed question type match. The question has been correctly assigned."
+    )
+    feedback: str = Field(
+        description="A feedback comment to improve the question routing in case it has not been routed correctly.",
+        default=None,
     )
 
 
@@ -64,5 +77,11 @@ class SpotifyClassifier(BaseModel):
     key_word: str = Field(
         description="Key artist, track or playlist to search for in Spotify. Between 1 and 10 words all in one line",
         min_length=1,
-        max_length=10,
+        max_length=20,
+    )
+
+
+class SpotifyActionClassifier(BaseModel):
+    classification: SpotifyAction = Field(
+        description="PLAY if the action is to play music. Otherwise (pause, next track, etc.) it should be OTHER."
     )

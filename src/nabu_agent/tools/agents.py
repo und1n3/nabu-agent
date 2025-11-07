@@ -1,20 +1,24 @@
 import logging
 import os
 from io import BytesIO
-
+from datetime import datetime
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSequence
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
+from langchain.agents import create_agent
 
-from ..tools.web_loader import search_and_fetch
+from ..tools.web_loader import search_internet
 from ..utils.schemas import (
     Classifier,
+    Evaluator,
     PartySentence,
     QuestionType,
     SpotifyClassifier,
+    SpotifyAction,
+    SpotifyActionClassifier,
     Summarizer,
     Translator,
 )
@@ -35,7 +39,7 @@ def get_model() -> ChatOpenAI:
         api_key=os.environ["LLM_API_KEY"],
         base_url=os.environ["LLM_BASE_URL"],
         temperature=0.1,
-        top_p=1,
+        top_p=0.5,
     )
     return model
 
@@ -47,27 +51,31 @@ def execute_stt(input: bytes):
     else:
         model = WhisperModel(model_size, device="cpu", compute_type="int8")
     result, info = model.transcribe(BytesIO(input), beam_size=5)
-    return result
+    return result, info
 
 
 def execute_classifier_agent(
-    english_command, preestablished_commands_schema
+    english_command: str, preestablished_commands_schema: dict, feedback: str
 ) -> Classifier:
     llm = get_model()
     structured_llm_grader = llm.with_structured_output(Classifier)
 
     system = """
-    You must assess if the given text is one of the prestablished commands, a question that needs internet access or a command to play music in spotify.
-    The preestablished commands are in the format {{trigger_sentence : description of the type of answer you have to say}}
-            
-            - preestablished_command  (exact match or fuzzy match; return matched_trigger)
-            - spotify                (user wants to play music/radio)
-            - web_search             (user asks a general/up-to-date question requiring internet)
+    You are an assistant and expert text classifier. Classifiy the given command into one of the possible categories.
+    ## Categories:
+    - Spotify Command: Command is related to playing music, pausing music , playing the radio or turining up or down the volume.
+    - Knowledge Question: Commands asking about information. It does not include weather related questions.
+    - Domotics Routing: Commands asking about a homeassistant or a domotic related task. Related to turning on or off lights or the fan.
+    - Weather API: Commands asking about the weather, if it will be sunny, rainy, cloudy. Route here if it is asking about hanging the clothes.
+    - Party Mode: Commands in the list of preestablished commands. These are easter eggs.
 
-    **INSTRUCTIONS**:
-    - Think thoroughly what time of command you are asked. it should fall within one of the given categories
-    - Decide whether it should go for the spotify command (playing music, play radio), for a search result in the web (a question about general or up to date knowledge), if it is found within the prestablished commands (given list)
-      or is a homeassitant_command (turn on the light, what devices I have?)
+    ## Task
+    - Think step by step.
+    - Route the input command into the most appropiate category type.
+    - You may be given feedback to help with the routing, use it to decide the category.
+
+    ## Output Format
+    - classification : Question type category.
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -75,9 +83,10 @@ def execute_classifier_agent(
             ("system", system),
             (
                 "human",
-                """- command:  {text}
-                  - prestablished commands: {preestablished_commands_schema}
-                  - Question categories: {question_categories}
+                """
+                  - Command:  {english_command}
+                  - Prestablished commands: {preestablished_commands_schema}
+                  - feedback: {feedback}
                   """,
             ),
         ]
@@ -88,26 +97,29 @@ def execute_classifier_agent(
     result: Classifier = classifier.invoke(
         {
             "preestablished_commands_schema": preestablished_commands_schema,
-            "text": english_command,
-            "question_categories": QuestionType,
+            "english_command": english_command,
+            "feedback": feedback,
         }
     )
     return result
 
 
-def execute_search_text(english_command):
+def execute_evaluator_agent(
+    original_command: str, question_type: QuestionType
+) -> Evaluator:
     llm = get_model()
-    structured_llm_grader = llm.with_structured_output(Summarizer)
-    search_result = search_and_fetch(
-        query=english_command, num_results=2, chunk_size=1500
-    )
+    structured_llm_evaluator = llm.with_structured_output(Evaluator)
 
-    logger.info(f"\n\n Search Result: {search_result}")
-    # Define the prompt template for the agent
     system = """
-    You are an expert in summarizing content and giving the most accurate information. Given an initial command an the text containing the information,
-    Give an answer to the command using the information provided in the text. Keep it short, around one sentence.
+    You are an expert evaluator.
     
+    ## Task:
+    - Assess if the original command and the question type match.
+    - If they do not match, give a detailed feedback for improvement.
+
+    ## Output format:
+    - is_correct: a boolean stating if the question type decided given is correct.
+    - feedback: a feedback comment to improve the question routing.
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -115,16 +127,50 @@ def execute_search_text(english_command):
             ("system", system),
             (
                 "human",
-                """ Command: {command}
-                    Text: \n\n {text} """,
+                """
+                  - Original command: {original_command}
+                  - Routed Question Type: {question_type}
+                  """,
             ),
         ]
     )
 
-    agent = answer_prompt | structured_llm_grader
-    result = agent.invoke({"command": english_command, "text": search_result})
-    logger.info(f"Answer: {result.answer}")
-    return result.answer
+    evaluator: RunnableSequence = answer_prompt | structured_llm_evaluator
+
+    result: Classifier = evaluator.invoke(
+        {
+            "original_command": original_command,
+            "question_type": question_type.value,
+        }
+    )
+    return result
+
+
+async def execute_knowdledge_agent(english_command):
+    system_prompt = f"""
+    You are a knowledgeable and reliable expert assistant with access to an internet search tool for retrieving up-to-date information. 
+    Currently we are at {datetime.today()}, if the knowledge for the question is time dependant, use the tool.
+
+    ## Task:
+    - If the question can be answered from your world knowledge and independently of the current date, respond directly.
+    - Otherwise, if the question requires **recent, specific, or factual data** (e.g., about events, prices, statistics, or companies), use the `search_internet` tool to gather accurate information.
+    -  When possible, **mention sources or inferred confidence** (e.g., “According to recent reports...” or “Multiple sources agree...”)
+    - Provide a final answer with the available information
+
+    ## Output format
+    - If the tool was used, say you searched the internet along with the final answer.
+    """
+    agent = create_agent(
+        model=get_model(),
+        tools=[search_internet],
+        system_prompt=system_prompt,
+    )
+
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": english_command}]}
+    )
+
+    return result["messages"][-1].content
 
 
 def execute_party_sentence(text, preestablished_commands_schema) -> PartySentence:
@@ -159,20 +205,23 @@ def execute_party_sentence(text, preestablished_commands_schema) -> PartySentenc
     return result
 
 
-def execute_translator(text: str, destination_language: str) -> Translator:
+def execute_translator(
+    text: str, destination_language: str, original_language: str = "english"
+) -> Translator:
     llm = get_model()
     structured_llm_grader = llm.with_structured_output(Translator)
 
-    system = """
-    You are a language expert, you will be working mainly in catalan and english.Think thoroughly the meaning of the sentence and translate it to the best of your abilities. 
-    Translate word by word the given text. Be aware of double meanings in words, choose the correct translation.
-    Perform an intelligent translation, some words may be in another language if they are a song or arstist. take this into account.
-    
-    **INSTRUCTIONS:**
-    - Detect the language of the given sentence 
-    - translate the text from the original language to the destination language. Return just the text translated.
+    system = f"""
+    You are an expert translator, you will be translating from {original_language} to {destination_language}
+    **Tasks: 
+    - Think step by step. 
+    - Translate word by word the given text being aware of double meanings in words.
+    - Translate the text from the original language to the destination language.
     - Do not translate people's artists' or albums names.
     
+    ## Output format
+    - Translated text : The original sentence translated to {destination_language}
+
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -182,7 +231,6 @@ def execute_translator(text: str, destination_language: str) -> Translator:
                 "human",
                 """
                 - Text to translate: {text}
-                - Destination language: {destination_language}
                 """,
             ),
         ]
@@ -192,7 +240,6 @@ def execute_translator(text: str, destination_language: str) -> Translator:
     result: Translator = traslator_llm.invoke(
         {
             "text": text,
-            "destination_language": destination_language,
         }
     )
     return result
@@ -213,11 +260,14 @@ def execute_spotify_classifier_agent(text) -> SpotifyClassifier:
     Example 3:
         - Command: play radio Crim
         - Answer: {{type: radio}}
-    Instructions:
-    - Translate the question into english.
-    - Decide which of the given Spotify commands suits best [radio, song, playlist or album]. If radio mentioned, type is radio.
+    
+    ##Task:
+    - Decide which of the given Spotify types suits best [radio, song, playlist or album]. If radio mentioned, type is radio.
     - Return also the key word(s) to search for. For example, given a song it would be the song title, radio or playlist would be the name, album would be title . Also the artist if given
     
+    ## Output Format:
+    - classification: One of "track", "album", "artist", "playlist" or "radio"
+    - key word: the name of the artist, playlist, track , radio or album.
     """
 
     answer_prompt = ChatPromptTemplate.from_messages(
@@ -241,7 +291,62 @@ def execute_spotify_classifier_agent(text) -> SpotifyClassifier:
     return result
 
 
-async def execute_ha_command(english_command):
+def execute_spotify_decide_action(text) -> SpotifyAction:
+    llm = get_model()
+    structured_llm_grader = llm.with_structured_output(SpotifyActionClassifier)
+
+    system = """
+    You must decide if the user query is to play music or to do other actions such as pause music, get next track or previous track, turn volume up or down.
+    
+    ##Task:
+    - Decide which action suits best: PLAY (play music) or OTHER (pause, next, volume...)
+
+    ## Output Format:
+    - classification: either PLAY or OTHER
+    """
+    answer_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            (
+                "human",
+                """User command: \n\n {text} """,
+            ),
+        ]
+    )
+
+    classifier: RunnableSequence = answer_prompt | structured_llm_grader
+
+    result: SpotifyActionClassifier = classifier.invoke(
+        {
+            "text": text,
+        }
+    )
+
+    return result.classification
+
+
+def execute_tool_agent(english_command: str, tools: list) -> str:
+    # tool_description = (
+    #     f"{x['name']}:{x['description']}. Args: {x['args']}\n" for x in tools
+    # )
+    system_prompt = """
+    You are a tool calling agent.
+    ## Task: 
+    - Given a command, decide which tool should be called.
+    - Call the tool and provide the final result.
+    """
+    agent = create_agent(
+        model=get_model(),
+        tools=tools,
+        system_prompt=system_prompt,
+    )
+    response = agent.invoke(
+        {"messages": [{"role": "user", "content": english_command}]}
+    )
+    return response["messages"][-1].content
+
+
+async def execute_ha_command(english_command: str) -> str:
     ha_token = os.environ["HA_TOKEN"]
     ha_url = os.environ["HA_URL"]
     client = MultiServerMCPClient(
@@ -256,24 +361,22 @@ async def execute_ha_command(english_command):
         }
     )
     tools = await client.get_tools()
+    system_prompt = """
+    You are a tool calling agent. You are a given set of tools and should choose the most adient one.
 
-    llm = get_model().bind_tools(tools)
-    result = await llm.ainvoke(english_command)
-    for tool_call in result.tool_calls:
-        tool_name = tool_call["name"]
-        tool_args = tool_call.get("args", {})
-        tool = next(t for t in tools if t.name == tool_name)
-        try:
-            tool_result = await tool.ainvoke(tool_args)
+    ## Task: 
+    - Given a command, decide which tool should be called.
+    - If none matches the command, use the most similar one.
+    - Call the tool and provide a summary of the result.
+    """
+    agent = create_agent(
+        model=get_model(),
+        tools=tools,
+        system_prompt=system_prompt,
+    )
 
-            followup = await llm.ainvoke(
-                [
-                    f"The original prompt is: {english_command}, parse the result of the tool following the instructions:",
-                    result,
-                    tool_result,
-                ]
-            )
-        except Exception:
-            return "Error calling tools in HA command"
-        return followup.content
-    return result
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": english_command}]}
+    )
+
+    return result["messages"][-1].content

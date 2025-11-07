@@ -1,6 +1,6 @@
 from typing_extensions import TypedDict
 
-from ...utils.schemas import QuestionType, SpotifyType
+from ...utils.schemas import QuestionType, SpotifyType, SpotifyAction
 
 
 class MainGraphState(TypedDict):
@@ -8,9 +8,12 @@ class MainGraphState(TypedDict):
     input: bytes
     original_language: str
     english_command: str
+    routing_ok: bool
+    feedback: str
     question_type: QuestionType
     spotify_command: SpotifyType
     spotify_query: str
+    spotify_action: SpotifyAction
     web_search: str
     final_answer: str  # sentence to return
     final_answer_translated: str
