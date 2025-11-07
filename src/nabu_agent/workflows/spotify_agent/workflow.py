@@ -22,6 +22,7 @@ def build_spotify_workflow() -> CompiledStateGraph:
 
     workflow.add_conditional_edges(
         "Decide Action",
+        decide_action,
         {
             SpotifyAction.OTHER.value: "Other Actions",
             SpotifyAction.PLAY.value: "What to play?",

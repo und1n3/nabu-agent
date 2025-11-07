@@ -50,8 +50,10 @@ def build_main_workflow() -> CompiledStateGraph:
         },
     )
     workflow.add_edge("Pre-stablished commands", "Finish Action")
-    workflow.add_edge("Internet search", "Finish Action")
+    workflow.add_edge("Knowledge Question", "Finish Action")
     workflow.add_edge("Spotify Command", "Finish Action")
+    workflow.add_edge("API Call", "Finish Action")
+
     workflow.add_edge("Home Assistant Command", "Finish Action")
     workflow.set_finish_point("Finish Action")
     return workflow.compile()
